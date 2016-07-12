@@ -25,8 +25,10 @@ namespace NeosSDI.ProjectOnline.CSOM
 
         // MLL: Variables para cargar los datos de la imputación
         private static List<string> username = new List<string>();
+        private static List<string> usernameGuid = new List<string>();
         private static List<string> usernameDistinc = new List<string>();
         private static List<string> taskid = new List<string>();
+        private static List<string> projectid = new List<string>();
         private static List<int> actualwork = new List<int>();
         private static List<DateTime> fecha = new List<DateTime>();
 
@@ -231,7 +233,7 @@ namespace NeosSDI.ProjectOnline.CSOM
                     string currentUserName = usernameDistinc.ElementAt(a);
                     string currentUserName2 = usernameDistinc.ElementAt(a).Substring(8 + domain.Length);
                     projContext = new ProjectContext(PwaPath);
-                    
+
 
                     //projContext.Credentials = new System.Net.NetworkCredential(currentUserName2, "4ltr4n@2016", domain);
                     projContext.Credentials = new System.Net.NetworkCredential("marc.lluis", "4ltr4n@2016", "ps");
@@ -250,8 +252,10 @@ namespace NeosSDI.ProjectOnline.CSOM
 
                     var currentResource = projContext.EnterpriseResources.FirstOrDefault();
                     if (currentResource == null)
+                    {
+                        AsignarUsuarioATarea(projectid.ElementAt(a),usernameGuid.ElementAt(a),taskid.ElementAt(a),fecha.ElementAt(a), fecha.ElementAt(a));
                         throw new Exception("Please create yourself as a resource !");
-
+                    }
 
                     projContext.Load(projContext.TimeSheetPeriods, c => c.Where(p => p.Start <= DateTime.Now && p.End >= DateTime.Now).
                         IncludeWithDefaultProperties(p => p.TimeSheet,
@@ -412,11 +416,17 @@ namespace NeosSDI.ProjectOnline.CSOM
                 while (rs.Read())
                 {
                     taskid.Add(rs.GetValue(0).ToString());
+                    usernameGuid.Add(rs.GetValue(1).ToString());
 
                     sentencia = "SELECT ResourceNTAccount FROM MSP_EpmResource WHERE ResourceUID ='" + rs.GetValue(1).ToString() + "'";
                     SqlDataReader rs2 = GestioBBDD.ExecutarConsulta(sentencia);
                     if (rs2.Read())
                         username.Add(rs2.GetValue(0).ToString());
+
+                    sentencia = "SELECT ProjectUID FROM MSP_EpmTask WHERE TaskUID = '" + rs.GetValue(0).ToString() + "'";
+                    SqlDataReader rs3 = GestioBBDD.ExecutarConsulta(sentencia);
+                    if (rs3.Read())
+                        projectid.Add(rs3.GetValue(0).ToString());
 
                     fecha.Add(Convert.ToDateTime(rs.GetValue(2).ToString()));
                     //Console.WriteLine("TASK REMAINING WORK: " + rs.GetValue(3).ToString());
@@ -598,13 +608,17 @@ namespace NeosSDI.ProjectOnline.CSOM
             }
         }
 
-        private static void CreateNewTask(DraftProject draftProj, string resource, string id, DateTime start, DateTime finish)
+        private static void AsignarUsuarioATarea(string proj_id, string resource, string task_id, DateTime start, DateTime finish)
         {
-            
+            var proj = projContext.Projects.First(p => p.Id == Guid.Parse(proj_id));
+            projContext.ExecuteQuery();
+
+            var draftProj = proj.CheckOut();
+
             AssignmentCreationInformation ass = new AssignmentCreationInformation();
             ass.ResourceId = Guid.Parse(resource);
 
-            ass.TaskId = Guid.Parse(id);
+            ass.TaskId = Guid.Parse(task_id);
             ass.Start = start;
             ass.Finish = finish;
             draftProj.Assignments.Add(ass);
